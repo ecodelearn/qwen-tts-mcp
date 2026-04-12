@@ -1,0 +1,7 @@
+.venv/
+piper-models/
+__pycache__/
+*.pyc
+.env
+minha_voz.wav
+/tmp/
