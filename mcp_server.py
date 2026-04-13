@@ -17,23 +17,10 @@ from mcp import types
 load_dotenv(os.environ.get("EVO_ENV_FILE", "/home/ecode/Documents/projetos/pi-evo-tool/.env"))
 
 server = Server("qwen-tts-mcp")
-_model_custom = None
 _model_clone = None
 
 REF_AUDIO = "/home/ecode/minha_voz.wav"
 REF_TEXT = "O rato roeu a roupa do rei de Roma. O Calé é amigo da garotada. O Sandeco em cima ia aplicada. Eu sou o da..."
-
-
-def get_model_custom():
-    global _model_custom
-    if _model_custom is None:
-        from qwen_tts import Qwen3TTSModel
-        _model_custom = Qwen3TTSModel.from_pretrained(
-            "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
-            device_map="cuda:0",
-            dtype=torch.bfloat16,
-        )
-    return _model_custom
 
 
 def get_model_clone():
@@ -146,12 +133,13 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
     if name == "tts_generate":
         def run():
-            model = get_model_custom()
-            wavs, sr = model.generate_custom_voice(
+            model = get_model_clone()
+            wavs, sr = model.generate_voice_clone(
                 text=arguments["text"],
                 language=arguments.get("language", "Portuguese"),
-                speaker=arguments.get("speaker", "Ono_Anna"),
-                instruct=arguments.get("instruct") or None,
+                ref_audio=REF_AUDIO,
+                ref_text=REF_TEXT,
+                instruct=arguments.get("instruct", "empolgado"),
             )
             mp3 = to_mp3(wavs[0], sr)
             with open(mp3, "rb") as f:
@@ -163,12 +151,13 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
     elif name == "tts_send_whatsapp":
         def run():
-            model = get_model_custom()
-            wavs, sr = model.generate_custom_voice(
+            model = get_model_clone()
+            wavs, sr = model.generate_voice_clone(
                 text=arguments["text"],
                 language=arguments.get("language", "Portuguese"),
-                speaker=arguments.get("speaker", "Ono_Anna"),
-                instruct=arguments.get("instruct") or None,
+                ref_audio=REF_AUDIO,
+                ref_text=REF_TEXT,
+                instruct=arguments.get("instruct", "empolgado"),
             )
             mp3 = to_mp3(wavs[0], sr)
             return send_audio(arguments["to"], mp3)
