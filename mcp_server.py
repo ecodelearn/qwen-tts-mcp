@@ -212,7 +212,10 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
 
 def main():
-    asyncio.run(stdio_server(server))
+    async def run():
+        async with stdio_server() as (r, w):
+            await server.run(r, w, server.create_initialization_options())
+    asyncio.run(run())
 
 
 if __name__ == "__main__":
