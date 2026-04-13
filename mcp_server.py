@@ -17,10 +17,23 @@ from mcp import types
 load_dotenv(os.environ.get("EVO_ENV_FILE", "/home/ecode/Documents/projetos/pi-evo-tool/.env"))
 
 server = Server("qwen-tts-mcp")
-_model_clone = None
+_model_custom = None   # 1.7B-CustomVoice  → Anna (feminina) e outros speakers
+_model_clone = None    # 0.6B-Base          → clone da voz do dono (masculina)
 
 REF_AUDIO = "/home/ecode/minha_voz.wav"
 REF_TEXT = "O rato roeu a roupa do rei de Roma. O Calé é amigo da garotada. O Sandeco em cima ia aplicada. Eu sou o da..."
+
+
+def get_model_custom():
+    global _model_custom
+    if _model_custom is None:
+        from qwen_tts import Qwen3TTSModel
+        _model_custom = Qwen3TTSModel.from_pretrained(
+            "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+            device_map="cuda:0",
+            dtype=torch.bfloat16,
+        )
+    return _model_custom
 
 
 def get_model_clone():
@@ -131,33 +144,15 @@ async def list_tools() -> list[types.Tool]:
 async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     loop = asyncio.get_event_loop()
 
-    if name == "tts_generate":
+    if name == "tts_send_whatsapp":
+        # Voz feminina Anna via 1.7B-CustomVoice
         def run():
-            model = get_model_clone()
-            wavs, sr = model.generate_voice_clone(
+            model = get_model_custom()
+            wavs, sr = model.generate_custom_voice(
                 text=arguments["text"],
+                speaker=arguments.get("speaker", "Ono_Anna"),
                 language=arguments.get("language", "Portuguese"),
-                ref_audio=REF_AUDIO,
-                ref_text=REF_TEXT,
-                instruct_text=arguments.get("instruct", "empolgado"),
-            )
-            mp3 = to_mp3(wavs[0], sr)
-            with open(mp3, "rb") as f:
-                b64 = base64.b64encode(f.read()).decode()
-            os.unlink(mp3)
-            return b64
-        b64 = await loop.run_in_executor(None, run)
-        return [types.TextContent(type="text", text=json.dumps({"audio_base64": b64}))]
-
-    elif name == "tts_send_whatsapp":
-        def run():
-            model = get_model_clone()
-            wavs, sr = model.generate_voice_clone(
-                text=arguments["text"],
-                language=arguments.get("language", "Portuguese"),
-                ref_audio=REF_AUDIO,
-                ref_text=REF_TEXT,
-                instruct_text=arguments.get("instruct", "empolgado"),
+                instruct=arguments.get("instruct") or None,
             )
             mp3 = to_mp3(wavs[0], sr)
             return send_audio(arguments["to"], mp3)
@@ -165,14 +160,19 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         return [types.TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
 
     elif name == "tts_clone_send_whatsapp":
+        # Voz masculina clonada do dono via 0.6B-Base
         def run():
+            ref_tmp = "/tmp/ref_clip.wav"
+            subprocess.run(
+                ["ffmpeg", "-i", REF_AUDIO, "-t", "10", "-ar", "16000", "-ac", "1", ref_tmp, "-y"],
+                check=True, capture_output=True,
+            )
             model = get_model_clone()
             wavs, sr = model.generate_voice_clone(
                 text=arguments["text"],
                 language=arguments.get("language", "Portuguese"),
-                ref_audio=REF_AUDIO,
+                ref_audio=ref_tmp,
                 ref_text=REF_TEXT,
-                instruct=arguments.get("instruct", "empolgado"),
             )
             mp3 = to_mp3(wavs[0], sr)
             return send_audio(arguments["to"], mp3)
@@ -180,6 +180,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         return [types.TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
 
     elif name == "tts_faber_send_whatsapp":
+        # Piper TTS — rápido, ideal para textos longos
         def run():
             import numpy as np
             from piper import PiperVoice
@@ -188,9 +189,8 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             )
             chunks = list(voice.synthesize(arguments["text"]))
             audio = np.concatenate([c.audio_float_array for c in chunks])
-            import soundfile as sf_mod
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-                sf_mod.write(f.name, audio, chunks[0].sample_rate)
+                sf.write(f.name, audio, chunks[0].sample_rate)
                 wav_path = f.name
             mp3 = to_mp3_from_wav(wav_path)
             return send_audio(arguments["to"], mp3)
