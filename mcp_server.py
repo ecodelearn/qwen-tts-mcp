@@ -85,7 +85,7 @@ async def list_tools() -> list[types.Tool]:
     return [
         types.Tool(
             name="tts_send_whatsapp",
-            description="Gera áudio com voz feminina Ono_Anna (padrão) e envia para WhatsApp. Para voz masculina use speaker='Ryan'.",
+            description="Gera áudio com clone de voz (0.6B-Base) e envia para WhatsApp.",
             inputSchema={
                 "type": "object",
                 "required": ["text", "to"],
@@ -139,7 +139,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 language=arguments.get("language", "Portuguese"),
                 ref_audio=REF_AUDIO,
                 ref_text=REF_TEXT,
-                instruct=arguments.get("instruct", "empolgado"),
+                instruct_text=arguments.get("instruct", "empolgado"),
             )
             mp3 = to_mp3(wavs[0], sr)
             with open(mp3, "rb") as f:
@@ -157,7 +157,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 language=arguments.get("language", "Portuguese"),
                 ref_audio=REF_AUDIO,
                 ref_text=REF_TEXT,
-                instruct=arguments.get("instruct", "empolgado"),
+                instruct_text=arguments.get("instruct", "empolgado"),
             )
             mp3 = to_mp3(wavs[0], sr)
             return send_audio(arguments["to"], mp3)
